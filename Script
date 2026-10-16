@@ -1,0 +1,330 @@
+--[[
+    Yabujin Clone - Rivals Skin Changer
+    Basé sur la logique open source de ScriptBlox et bypass.tools
+    AC Bypass intégré + Obsidian UI
+]]
+
+-- ==========================================
+-- 1. AC BYPASS (ton bloc)
+-- ==========================================
+local _stbl; _stbl = hookfunction(getrenv().setmetatable, newcclosure(function(tbl, mt)
+    if mt and typeof(mt) == "table" and rawget(mt, "__mode") == "kv" then
+        local tr = debug.traceback()
+        if tr:find("MiscellaneousController") then
+            return _stbl({1,2,3}, {})
+        end
+    end
+    return _stbl(tbl, mt)
+end))
+
+coroutine.wrap(function()
+    pcall(function()
+        local function _proc(o)
+            pcall(function()
+                if o:IsA("LocalScript") or o:IsA("ModuleScript") then
+                    local _s, nm = pcall(function() return o.Name:lower() end)
+                    if not _s or not nm then return end
+                    local _tags = {"anticheat","ac","detection","ban","kick","security","moderation"}
+                    for _i = 1, #_tags do
+                        if nm:find(_tags[_i]) then
+                            pcall(function() o.Disabled = true end)
+                            break
+                        end
+                    end
+                end
+            end)
+        end
+        pcall(function()
+            local _desc = game:GetDescendants()
+            for _i = 1, #_desc do _proc(_desc[_i]) end
+        end)
+        pcall(function() game.DescendantAdded:Connect(_proc) end)
+    end)
+    pcall(function()
+        local _nc = game:GetService("NetworkClient")
+        if not _nc then return end
+        _nc.ChildAdded:Connect(function(ch)
+            pcall(function()
+                local _ok, _n = pcall(function() return ch.Name:lower() end)
+                if _ok and _n then
+                    if _n:find("anticheat") or _n:find("detection") then
+                        pcall(function() ch:Destroy() end)
+                    end
+                end
+            end)
+        end)
+    end)
+end)()
+
+pcall(function()
+    local _rf = game:GetService("ReplicatedFirst")
+    local _tgt = _rf:WaitForChild("LocalScript3", 10)
+    local _ct = 0
+    local _gc = getgc(false)
+    for _i = 1, #_gc do
+        local _fn = _gc[_i]
+        if type(_fn) ~= "function" then continue end
+        local _ok1, _env = pcall(getfenv, _fn)
+        if not _ok1 or type(_env) ~= "table" then continue end
+        local _ok2, _scr = pcall(function() return rawget(_env, "script") end)
+        if not _ok2 or not _scr or typeof(_scr) ~= "Instance" then continue end
+        local _ok3, _ss = pcall(tostring, _scr)
+        if not _ok3 then continue end
+        if not (_scr == _tgt or (type(_ss) == "string" and _ss:find("LoadingScreen"))) then continue end
+        local _ok4, _consts = pcall(debug.getconstants, _fn)
+        if not _ok4 or type(_consts) ~= "table" then continue end
+        for _j = 1, #_consts do
+            local _c = _consts[_j]
+            if type(_c) == "string" and (_c:find("TakeTheL") or _c:find("ban") or _c:find("kick")) then
+                pcall(function()
+                    hookfunction(_fn, function() end)
+                    _ct += 1
+                end)
+                break
+            end
+        end
+    end
+end)
+
+task.wait(4)
+
+-- ==========================================
+-- 2. OBSIDIAN UI
+-- ==========================================
+local repo = "https://raw.githubusercontent.com/deividcomsono/Obsidian/main/"
+local Library = loadstring(game:HttpGet(repo .. "Library.lua"))()
+local ThemeManager = loadstring(game:HttpGet(repo .. "addons/ThemeManager.lua"))()
+local SaveManager = loadstring(game:HttpGet(repo .. "addons/SaveManager.lua"))()
+
+local Window = Library:CreateWindow({
+    Title = "Yabujin Clone",
+    Footer = "Skin Changer - by Louis",
+    Icon = 95816097006870,
+    NotifySide = "Right",
+    ShowCustomCursor = true,
+})
+
+local Tabs = {
+    Main = Window:AddTab("Skins", "home"),
+    Settings = Window:AddTab("Settings", "settings")
+}
+
+local LeftGroupbox = Tabs.Main:AddLeftGroupbox("Weapon Selection")
+local RightGroupbox = Tabs.Main:AddRightGroupbox("Actions")
+
+-- ==========================================
+-- 3. LOGIQUE DE SKIN CHANGER (basée sur open source)
+-- ==========================================
+local weaponSkins = {
+    ["Bow"] = {"Compound Bow", "Raven Bow"},
+    ["Assault Rifle"] = {"AK-47", "AUG"},
+    ["Chainsaw"] = {"Blobsaw", "Handsaws"},
+    ["RPG"] = {"Nuke Launcher", "RPKEY", "Spaceship Launcher"},
+    ["Burst Rifle"] = {"Aqua Burst", "Electro Rifle"},
+    ["Exogun"] = {"Singularity", "Wondergun"},
+    ["Fists"] = {"Boxing Gloves", "Brass Knuckles"},
+    ["Flamethrower"] = {"Lamethrower", "Pixel Flamethrower"},
+    ["Flare Gun"] = {"Dynamite Gun", "Firework Gun"},
+    ["Freeze Ray"] = {"Bubble Ray", "Temporal Ray"},
+    ["Grenade"] = {"Water Balloon", "Whoopee Cushion"},
+    ["Grenade Launcher"] = {"Swashbuckler", "Uranium Launcher"},
+    ["Handgun"] = {"Blaster"},
+    ["Katana"] = {"Lightning Bolt", "Saber"},
+    ["Minigun"] = {"Lasergun 3000", "Pixel Minigun"},
+    ["Paintball Gun"] = {"Boba Gun", "Slime Gun"},
+    ["Revolver"] = {"Sheriff"},
+    ["Slingshot"] = {"Goalpost", "Stick"},
+    ["Subspace Tripmine"] = {"Don't Press", "Spring"},
+    ["Uzi"] = {"Electro Uzi", "Water Uzi"},
+    ["Sniper"] = {"Pixel Sniper", "Hyper Sniper"},
+    ["Knife"] = {"Karambit", "Chancla"},
+}
+
+local activeWeapons = {}
+local assetFolder = game:GetService("Players").LocalPlayer.PlayerScripts.Assets.ViewModels
+
+local function swapWeaponSkins(normalWeaponName, skinName, State)
+    if not normalWeaponName then return end
+    local normalWeapon = assetFolder:FindFirstChild(normalWeaponName)
+    if not normalWeapon then return end
+
+    if State then
+        if skinName then
+            local skin = assetFolder:FindFirstChild(skinName)
+            if not skin then return end
+            if not activeWeapons[normalWeaponName] then
+                local backup = normalWeapon:Clone()
+                backup.Name = normalWeaponName .. "_Backup"
+                backup.Parent = assetFolder
+            end
+            normalWeapon:ClearAllChildren()
+            for _, child in pairs(skin:GetChildren()) do
+                child:Clone().Parent = normalWeapon
+            end
+            activeWeapons[normalWeaponName] = true
+        end
+    else
+        local backup = assetFolder:FindFirstChild(normalWeaponName .. "_Backup")
+        if backup then
+            normalWeapon:ClearAllChildren()
+            for _, child in pairs(backup:GetChildren()) do
+                child:Clone().Parent = normalWeapon
+            end
+            backup:Destroy()
+        end
+        activeWeapons[normalWeaponName] = nil
+    end
+end
+
+local function resetAll()
+    for _, backup in pairs(assetFolder:GetChildren()) do
+        if backup.Name:find("_Backup") then
+            local baseName = backup.Name:gsub("_Backup", "")
+            local weapon = assetFolder:FindFirstChild(baseName)
+            if weapon then
+                weapon:ClearAllChildren()
+                for _, child in pairs(backup:GetChildren()) do
+                    child:Clone().Parent = weapon
+                end
+            end
+            backup:Destroy()
+        end
+    end
+    activeWeapons = {}
+end
+
+-- ==========================================
+-- 4. GUI OBSIDIAN
+-- ==========================================
+local selectedWeapon = nil
+local selectedSkin = nil
+
+LeftGroupbox:AddDropdown("WeaponSelect", {
+    Values = (function()
+        local list = {}
+        for weapon, _ in pairs(weaponSkins) do
+            table.insert(list, weapon)
+        end
+        table.sort(list)
+        return list
+    end)(),
+    Default = 1,
+    Multi = false,
+    Text = "Choisir une arme",
+    Callback = function(Value)
+        selectedWeapon = Value
+    end
+})
+
+LeftGroupbox:AddDropdown("SkinSelect", {
+    Values = (function()
+        local allSkins = {"Aucune"}
+        for _, skins in pairs(weaponSkins) do
+            for _, skin in ipairs(skins) do
+                table.insert(allSkins, skin)
+            end
+        end
+        table.sort(allSkins)
+        return allSkins
+    end)(),
+    Default = 1,
+    Multi = false,
+    Text = "Choisir une skin",
+    Callback = function(Value)
+        if Value == "Aucune" then
+            selectedSkin = nil
+        else
+            selectedSkin = Value
+        end
+    end
+})
+
+RightGroupbox:AddButton({
+    Text = "Appliquer la skin",
+    Tooltip = "Applique la skin sélectionnée à l'arme choisie",
+    Func = function()
+        if not selectedWeapon then
+            Library:Notify({Title = "Erreur", Content = "Aucune arme sélectionnée", Duration = 3})
+            return
+        end
+        if not selectedSkin then
+            Library:Notify({Title = "Erreur", Content = "Aucune skin sélectionnée", Duration = 3})
+            return
+        end
+        local success, err = pcall(function()
+            swapWeaponSkins(selectedWeapon, selectedSkin, true)
+        end)
+        if success then
+            Library:Notify({Title = "Succès", Content = "Skin appliquée: " .. selectedSkin, Duration = 3})
+        else
+            Library:Notify({Title = "Erreur", Content = tostring(err), Duration = 3})
+        end
+    end
+})
+
+RightGroupbox:AddButton({
+    Text = "Reset l'arme",
+    Tooltip = "Remet l'arme sélectionnée à son apparence d'origine",
+    Func = function()
+        if not selectedWeapon then
+            Library:Notify({Title = "Erreur", Content = "Aucune arme sélectionnée", Duration = 3})
+            return
+        end
+        local success, err = pcall(function()
+            swapWeaponSkins(selectedWeapon, nil, false)
+        end)
+        if success then
+            Library:Notify({Title = "Succès", Content = "Arme reset: " .. selectedWeapon, Duration = 3})
+        else
+            Library:Notify({Title = "Erreur", Content = tostring(err), Duration = 3})
+        end
+    end
+})
+
+RightGroupbox:AddButton({
+    Text = "Reset TOUT",
+    Tooltip = "Remet toutes les armes modifiées à leur apparence d'origine",
+    Func = function()
+        local success, err = pcall(resetAll)
+        if success then
+            Library:Notify({Title = "Succès", Content = "Toutes les armes ont été reset", Duration = 3})
+        else
+            Library:Notify({Title = "Erreur", Content = tostring(err), Duration = 3})
+        end
+    end
+})
+
+-- ==========================================
+-- 5. SETTINGS
+-- ==========================================
+local SettingsGroupbox = Tabs.Settings:AddLeftGroupbox("Interface")
+
+SettingsGroupbox:AddButton({
+    Text = "Charger les thèmes",
+    Func = function()
+        ThemeManager:SetLibrary(Library)
+        ThemeManager:LoadDefault()
+    end
+})
+
+SettingsGroupbox:AddButton({
+    Text = "Sauvegarder la config",
+    Func = function()
+        SaveManager:SetLibrary(Library)
+        SaveManager:Save("YabujinClone")
+    end
+})
+
+SettingsGroupbox:AddButton({
+    Text = "Charger la config",
+    Func = function()
+        SaveManager:SetLibrary(Library)
+        SaveManager:Load("YabujinClone")
+    end
+})
+
+Library:Notify({
+    Title = "Yabujin Clone",
+    Content = "Script chargé - Sélectionne une arme et une skin",
+    Duration = 5
+})
